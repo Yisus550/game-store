@@ -1,0 +1,126 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "./app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User { id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  passwordHash  String?   // Nullable if using OAuth (Google/GitHub)
+  image         String?
+  role          Role      @default(CUSTOMER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  orders        Order[]
+  reviews       Review[]
+  wishlist      Game[]    @relation("UserWishlist") // Implicit Many-to-Many
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+model Game {
+  id            String    @id @default(cuid())
+  title         String
+  slug          String    @unique
+  description   String    @db.Text
+  price         Decimal   @db.Decimal(10, 2)
+  coverImage    String?
+  releaseDate   DateTime
+  isFeatured    Boolean   @default(false)
+
+  platforms     Platform[]
+  genres        Genre[]
+  keys          GameKey[]
+  reviews       Review[]
+  orderItems    OrderItem[]
+  favoritedBy   User[]     @relation("UserWishlist")
+
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+model Platform {
+  id      Int    @id @default(autoincrement())
+  name    String @unique
+  slug    String @unique
+  games   Game[]
+}
+
+model Genre {
+  id      Int    @id @default(autoincrement())
+  name    String @unique
+  slug    String @unique
+  games   Game[]
+}
+
+model GameKey {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  isUsed    Boolean  @default(false)
+
+  gameId    String
+  game      Game     @relation(fields: [gameId], references: [id])
+
+  orderId   String?
+  order     Order?   @relation(fields: [orderId], references: [id])
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  total       Decimal     @db.Decimal(10, 2)
+  status      OrderStatus @default(PENDING)
+  createdAt   DateTime    @default(now())
+
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+
+  items       OrderItem[]
+  keys        GameKey[]   // Keys assigned to this order
+}
+
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  quantity  Int
+  price     Decimal @db.Decimal(10, 2)
+
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+
+  gameId    String
+  game      Game    @relation(fields: [gameId], references: [id])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int      @default(5)
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  gameId    String
+  game      Game     @relation(fields: [gameId], references: [id])
+
+  @@unique([userId, gameId]) // User can only review a game once
+}
